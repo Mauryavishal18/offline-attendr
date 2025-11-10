@@ -14,6 +14,7 @@ export function CameraCapture({ onAttendanceMarked }: CameraCaptureProps) {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [isCameraOpen, setIsCameraOpen] = useState(false);
+  const [isCameraLoading, setIsCameraLoading] = useState(false);
   const [capturedImage, setCapturedImage] = useState<Blob | null>(null);
   const [stream, setStream] = useState<MediaStream | null>(null);
   
@@ -28,30 +29,79 @@ export function CameraCapture({ onAttendanceMarked }: CameraCaptureProps) {
   }, []);
 
   const startCamera = async () => {
+    // Check browser support
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      toast({
+        title: "Camera Not Supported",
+        description: "Your browser doesn't support camera access.",
+        variant: "destructive",
+      });
+      console.error('getUserMedia not supported');
+      return;
+    }
+
+    setIsCameraLoading(true);
+    console.log('Opening camera...');
+
     try {
       const mediaStream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } },
         audio: false
       });
       
+      console.log('Stream obtained:', mediaStream);
+      
       if (videoRef.current) {
         videoRef.current.srcObject = mediaStream;
+        console.log('Video element ready:', videoRef.current);
+        
+        // Explicitly play the video
+        try {
+          await videoRef.current.play();
+          console.log('Video playing successfully');
+        } catch (playError) {
+          console.error('Error playing video:', playError);
+        }
       }
+      
       setStream(mediaStream);
       setIsCameraOpen(true);
-    } catch (error) {
+      console.log('Camera opened successfully');
+    } catch (error: any) {
+      console.error('Camera error:', error);
+      
+      let errorMessage = "Failed to access camera. Please try again.";
+      
+      if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
+        errorMessage = "Camera access denied. Please allow camera permissions in your browser settings.";
+      } else if (error.name === 'NotFoundError' || error.name === 'DevicesNotFoundError') {
+        errorMessage = "No camera found on your device.";
+      } else if (error.name === 'NotReadableError' || error.name === 'TrackStartError') {
+        errorMessage = "Camera is already in use by another application.";
+      } else if (error.name === 'OverconstrainedError') {
+        errorMessage = "Camera doesn't meet the required specifications.";
+      }
+      
       toast({
-        title: "Camera Access Denied",
-        description: "Please allow camera access to mark attendance.",
+        title: "Camera Error",
+        description: errorMessage,
         variant: "destructive",
       });
+    } finally {
+      setIsCameraLoading(false);
     }
   };
 
   const stopCamera = () => {
     if (stream) {
-      stream.getTracks().forEach(track => track.stop());
+      stream.getTracks().forEach(track => {
+        track.stop();
+        console.log('Camera track stopped:', track.kind);
+      });
       setStream(null);
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
     }
     setIsCameraOpen(false);
   };
@@ -150,6 +200,9 @@ export function CameraCapture({ onAttendanceMarked }: CameraCaptureProps) {
                       autoPlay
                       playsInline
                       muted
+                      onLoadedMetadata={() => {
+                        console.log('Video metadata loaded');
+                      }}
                       className="w-full h-full object-cover scale-x-[-1]"
                     />
                   )}
@@ -251,10 +304,24 @@ export function CameraCapture({ onAttendanceMarked }: CameraCaptureProps) {
                   <Button
                     size="lg"
                     onClick={startCamera}
+                    disabled={isCameraLoading}
                     className="gradient-primary gap-2"
                   >
-                    <Camera className="w-5 h-5" />
-                    Open Camera
+                    {isCameraLoading ? (
+                      <>
+                        <motion.div
+                          animate={{ rotate: 360 }}
+                          transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                          className="w-5 h-5 border-2 border-white border-t-transparent rounded-full"
+                        />
+                        Opening Camera...
+                      </>
+                    ) : (
+                      <>
+                        <Camera className="w-5 h-5" />
+                        Open Camera
+                      </>
+                    )}
                   </Button>
                 </motion.div>
 
