@@ -28,6 +28,32 @@ export function CameraCapture({ onAttendanceMarked }: CameraCaptureProps) {
     };
   }, []);
 
+  // Reliably bind stream to video element when camera opens
+  useEffect(() => {
+    if (!isCameraOpen || !stream || !videoRef.current) return;
+    
+    const video = videoRef.current;
+    video.srcObject = stream;
+    
+    const onLoaded = () => {
+      video.play()
+        .then(() => {
+          console.log('Video playing (effect)');
+          const track = stream.getVideoTracks()[0];
+          if (track) {
+            console.log('Track settings:', track.getSettings());
+          }
+        })
+        .catch(err => console.error('Video play failed:', err));
+    };
+    
+    video.onloadedmetadata = onLoaded;
+    
+    return () => {
+      video.onloadedmetadata = null;
+    };
+  }, [isCameraOpen, stream]);
+
   const startCamera = async () => {
     // Check browser support
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
@@ -193,7 +219,7 @@ export function CameraCapture({ onAttendanceMarked }: CameraCaptureProps) {
                 animate={{ opacity: 1, scale: 1 }}
                 className="space-y-4"
               >
-                <div className="relative w-full max-w-md mx-auto aspect-square rounded-2xl overflow-hidden border-4 border-primary/20">
+                <div className="relative w-full max-w-md mx-auto aspect-square rounded-2xl overflow-hidden border-4 border-primary/20 bg-black">
                   {isCameraOpen && (
                     <video
                       ref={videoRef}
@@ -203,14 +229,14 @@ export function CameraCapture({ onAttendanceMarked }: CameraCaptureProps) {
                       onLoadedMetadata={() => {
                         console.log('Video metadata loaded');
                       }}
-                      className="w-full h-full object-cover scale-x-[-1]"
+                      className="absolute inset-0 w-full h-full object-cover transform-gpu scale-x-[-1]"
                     />
                   )}
                   {capturedImage && (
                     <img
                       src={URL.createObjectURL(capturedImage)}
                       alt="Captured"
-                      className="w-full h-full object-cover"
+                      className="absolute inset-0 w-full h-full object-cover transform-gpu scale-x-[-1]"
                     />
                   )}
                 </div>
