@@ -36,89 +36,152 @@ const mockAttendance: AttendanceRecord[] = [
   { id: "5", studentId: "2301640130099", studentName: "Ram Ji", date: "2025-11-08", time: "09:25", status: "present", method: "face" },
 ];
 
-// API Base URL - Update this to your FastAPI backend URL
+// API Base URL - FastAPI backend
 const API_BASE_URL = "http://127.0.0.1:8000";
 
 // Mock API calls - Replace with actual fetch calls to your backend
 export const api = {
   // Register a new student
-  async registerStudent(data: Omit<Student, "id">): Promise<Student> {
-    // TODO: Replace with actual API call
-    // const response = await fetch(`${API_BASE_URL}/register_student`, {
-    //   method: 'POST',
-    //   headers: { 'Content-Type': 'application/json' },
-    //   body: JSON.stringify(data)
-    // });
-    // return response.json();
-    
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        resolve({ ...data, id: Date.now().toString() });
-      }, 1000);
+  async registerStudent(data: Omit<Student, "id"> & { password: string; studentRoll: string }): Promise<{ token: string; user: Student }> {
+    const response = await fetch(`${API_BASE_URL}/auth/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: data.name,
+        email: data.email,
+        password: data.password,
+        role: 'student',
+        studentRoll: data.studentRoll
+      })
     });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Registration failed');
+    }
+    
+    const result = await response.json();
+    return {
+      token: result.token,
+      user: {
+        id: result.user.id,
+        name: result.user.name,
+        studentId: result.user.studentRoll,
+        email: result.user.email,
+        photo: result.user.avatarPath
+      }
+    };
   },
 
-  // Mark attendance with image upload
-  async markAttendance(imageFile: File): Promise<AttendanceRecord> {
-    // TODO: Replace with actual API call
-    // const formData = new FormData();
-    // formData.append('image', imageFile);
-    // const response = await fetch(`${API_BASE_URL}/mark_attendance`, {
-    //   method: 'POST',
-    //   body: formData
-    // });
-    // return response.json();
-    
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        const randomStudent = mockStudents[Math.floor(Math.random() * mockStudents.length)];
-        resolve({
-          id: Date.now().toString(),
-          studentId: randomStudent.studentId,
-          studentName: randomStudent.name,
-          date: new Date().toISOString().split('T')[0],
-          time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
-          status: "present",
-          method: "face"
-        });
-      }, 1500);
+  // Mark attendance by roll number (no image required)
+  async markAttendance(roll: string, name: string): Promise<AttendanceRecord> {
+    const response = await fetch(`${API_BASE_URL}/attendance`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ roll, name })
     });
+    
+    if (response.status === 409) {
+      const data = await response.json();
+      throw new Error(data.message || 'Attendance already marked today');
+    }
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to mark attendance');
+    }
+    
+    const result = await response.json();
+    const attendance = result.attendance;
+    
+    return {
+      id: attendance.studentId,
+      studentId: roll,
+      studentName: name,
+      date: new Date(attendance.timestamp).toISOString().split('T')[0],
+      time: new Date(attendance.timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+      status: "present",
+      method: "manual"
+    };
   },
 
   // Get all attendance records
-  async getAttendanceRecords(): Promise<AttendanceRecord[]> {
-    // TODO: Replace with actual API call
-    // const response = await fetch(`${API_BASE_URL}/attendance_records`);
-    // return response.json();
+  async getAttendanceRecords(fromDate?: string, toDate?: string, roll?: string): Promise<AttendanceRecord[]> {
+    const params = new URLSearchParams();
+    if (fromDate) params.append('from_date', fromDate);
+    if (toDate) params.append('to_date', toDate);
+    if (roll) params.append('roll', roll);
     
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        resolve(mockAttendance);
-      }, 500);
-    });
+    const url = `${API_BASE_URL}/attendance${params.toString() ? '?' + params.toString() : ''}`;
+    const response = await fetch(url);
+    
+    if (!response.ok) {
+      throw new Error('Failed to fetch attendance records');
+    }
+    
+    const data = await response.json();
+    
+    return data.map((record: any) => ({
+      id: record.id,
+      studentId: record.roll,
+      studentName: record.name,
+      date: new Date(record.timestamp).toISOString().split('T')[0],
+      time: new Date(record.timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+      status: record.status.toLowerCase(),
+      method: "manual"
+    }));
   },
 
   // Get student attendance stats
-  async getStudentStats(studentId: string): Promise<{ present: number; absent: number; total: number }> {
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        const records = mockAttendance.filter(r => r.studentId === studentId);
-        const present = records.filter(r => r.status === "present").length;
-        resolve({
-          present,
-          absent: 2,
-          total: present + 2
-        });
-      }, 500);
-    });
+  async getStudentStats(studentRoll: string): Promise<{ present: number; absent: number; total: number }> {
+    const allRecords = await this.getAttendanceRecords(undefined, undefined, studentRoll);
+    const present = allRecords.filter(r => r.status === "present").length;
+    
+    // For absent days, calculate days since start of month minus present days
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const daysSinceStart = Math.floor((now.getTime() - startOfMonth.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+    const absent = Math.max(0, daysSinceStart - present);
+    
+    return {
+      present,
+      absent,
+      total: present + absent
+    };
   },
 
   // Get all students
   async getStudents(): Promise<Student[]> {
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        resolve(mockStudents);
-      }, 500);
+    const response = await fetch(`${API_BASE_URL}/students`);
+    
+    if (!response.ok) {
+      throw new Error('Failed to fetch students');
+    }
+    
+    const data = await response.json();
+    
+    return data.map((student: any) => ({
+      id: student.id,
+      name: student.name,
+      studentId: student.roll,
+      email: student.email,
+      photo: student.avatarPath
+    }));
+  },
+
+  // Login user
+  async login(email: string, password: string): Promise<{ token: string; user: any }> {
+    const response = await fetch(`${API_BASE_URL}/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password })
     });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Login failed');
+    }
+    
+    return response.json();
   }
 };

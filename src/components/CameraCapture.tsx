@@ -17,6 +17,8 @@ export function CameraCapture({ onAttendanceMarked }: CameraCaptureProps) {
   const [isCameraLoading, setIsCameraLoading] = useState(false);
   const [capturedImage, setCapturedImage] = useState<Blob | null>(null);
   const [stream, setStream] = useState<MediaStream | null>(null);
+  const [rollNumber, setRollNumber] = useState("");
+  const [studentName, setStudentName] = useState("");
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -164,15 +166,22 @@ export function CameraCapture({ onAttendanceMarked }: CameraCaptureProps) {
   };
 
   const handleMarkAttendance = async () => {
-    if (!capturedImage) return;
+    if (!rollNumber.trim() || !studentName.trim()) {
+      toast({
+        title: "Missing Information",
+        description: "Please enter both roll number and name.",
+        variant: "destructive",
+      });
+      return;
+    }
     
     setLoading(true);
     setSuccess(false);
 
     try {
-      const file = new File([capturedImage], "attendance.jpg", { type: "image/jpeg" });
-      const result = await api.markAttendance(file);
+      const result = await api.markAttendance(rollNumber, studentName);
       setSuccess(true);
+      stopCamera();
       toast({
         title: "Attendance Marked!",
         description: `Welcome, ${result.studentName}. Your attendance has been recorded.`,
@@ -182,11 +191,13 @@ export function CameraCapture({ onAttendanceMarked }: CameraCaptureProps) {
       setTimeout(() => {
         setSuccess(false);
         setCapturedImage(null);
+        setRollNumber("");
+        setStudentName("");
       }, 3000);
-    } catch (error) {
+    } catch (error: any) {
       toast({
         title: "Error",
-        description: "Failed to mark attendance. Please try again.",
+        description: error.message || "Failed to mark attendance. Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -315,51 +326,77 @@ export function CameraCapture({ onAttendanceMarked }: CameraCaptureProps) {
                   whileHover={{ scale: 1.05 }}
                   className="w-32 h-32 mx-auto mb-6 rounded-full gradient-primary flex items-center justify-center"
                 >
-                  <Camera className="w-16 h-16 text-white" />
+                  <CheckCircle className="w-16 h-16 text-white" />
                 </motion.div>
 
-                <h3 className="text-xl font-bold mb-2">Mark Your Attendance</h3>
+                <h3 className="text-xl font-bold mb-4">Mark Your Attendance</h3>
                 <p className="text-muted-foreground mb-6">
-                  Use your camera to capture your face for attendance
+                  Enter your roll number and name to mark attendance
                 </p>
 
-                <motion.div
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                >
-                  <Button
-                    size="lg"
-                    onClick={startCamera}
-                    disabled={isCameraLoading}
-                    className="gradient-primary gap-2"
+                <div className="space-y-4 max-w-md mx-auto">
+                  <div>
+                    <label htmlFor="rollNumber" className="block text-sm font-medium mb-2 text-left">
+                      Roll Number
+                    </label>
+                    <input
+                      id="rollNumber"
+                      type="text"
+                      value={rollNumber}
+                      onChange={(e) => setRollNumber(e.target.value)}
+                      placeholder="e.g., 2301640130144"
+                      className="w-full px-4 py-2 rounded-lg border border-border bg-background focus:outline-none focus:ring-2 focus:ring-primary"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label htmlFor="studentName" className="block text-sm font-medium mb-2 text-left">
+                      Full Name
+                    </label>
+                    <input
+                      id="studentName"
+                      type="text"
+                      value={studentName}
+                      onChange={(e) => setStudentName(e.target.value)}
+                      placeholder="e.g., Vishal Maurya"
+                      className="w-full px-4 py-2 rounded-lg border border-border bg-background focus:outline-none focus:ring-2 focus:ring-primary"
+                    />
+                  </div>
+
+                  <motion.div
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    className="pt-2"
                   >
-                    {isCameraLoading ? (
-                      <>
-                        <motion.div
-                          animate={{ rotate: 360 }}
-                          transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                          className="w-5 h-5 border-2 border-white border-t-transparent rounded-full"
-                        />
-                        Opening Camera...
-                      </>
-                    ) : (
-                      <>
-                        <Camera className="w-5 h-5" />
-                        Open Camera
-                      </>
-                    )}
-                  </Button>
-                </motion.div>
-
-                <p className="text-xs text-muted-foreground mt-4">
-                  Please allow camera access when prompted
-                </p>
+                    <Button
+                      size="lg"
+                      onClick={handleMarkAttendance}
+                      disabled={loading || !rollNumber.trim() || !studentName.trim()}
+                      className="w-full gradient-primary gap-2"
+                    >
+                      {loading ? (
+                        <>
+                          <motion.div
+                            animate={{ rotate: 360 }}
+                            transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                            className="w-4 h-4 border-2 border-white border-t-transparent rounded-full"
+                          />
+                          Marking Attendance...
+                        </>
+                      ) : (
+                        <>
+                          <CheckCircle className="w-4 h-4" />
+                          Mark Attendance
+                        </>
+                      )}
+                    </Button>
+                  </motion.div>
+                </div>
               </>
             )}
           </>
         )}
 
-        {/* Hidden canvas for capturing frames */}
         <canvas ref={canvasRef} className="hidden" />
       </div>
     </Card>
