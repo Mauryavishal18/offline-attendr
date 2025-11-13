@@ -19,21 +19,21 @@ export interface AttendanceRecord {
   method: "face" | "fingerprint" | "manual";
 }
 
-// Mock data
+// Mock data - Exact students as per requirements
 const mockStudents: Student[] = [
-  { id: "1", name: "John Doe", studentId: "STU001", email: "john@example.com" },
-  { id: "2", name: "Jane Smith", studentId: "STU002", email: "jane@example.com" },
-  { id: "3", name: "Alex Johnson", studentId: "STU003", email: "alex@example.com" },
-  { id: "4", name: "Emily Brown", studentId: "STU004", email: "emily@example.com" },
-  { id: "5", name: "Michael Davis", studentId: "STU005", email: "michael@example.com" },
+  { id: "1", name: "Vishal Maurya", studentId: "2301640130144", email: "vishal@gmail.com" },
+  { id: "2", name: "Virat Trivedi", studentId: "2301640130143", email: "virat@gmail.com" },
+  { id: "3", name: "Vishesh Singh", studentId: "2301640130145", email: "vishesh@gmail.com" },
+  { id: "4", name: "Parth Mishra", studentId: "2301640130085", email: "parth@gmail.com" },
+  { id: "5", name: "Ram Ji", studentId: "2301640130099", email: "ram@gmail.com" },
 ];
 
 const mockAttendance: AttendanceRecord[] = [
-  { id: "1", studentId: "STU001", studentName: "John Doe", date: "2025-11-09", time: "09:15", status: "present", method: "face" },
-  { id: "2", studentId: "STU002", studentName: "Jane Smith", date: "2025-11-09", time: "09:18", status: "present", method: "face" },
-  { id: "3", studentId: "STU003", studentName: "Alex Johnson", date: "2025-11-09", time: "09:22", status: "present", method: "fingerprint" },
-  { id: "4", studentId: "STU004", studentName: "Emily Brown", date: "2025-11-08", time: "09:10", status: "present", method: "face" },
-  { id: "5", studentId: "STU005", studentName: "Michael Davis", date: "2025-11-08", time: "09:25", status: "present", method: "manual" },
+  { id: "1", studentId: "2301640130144", studentName: "Vishal Maurya", date: "2025-11-09", time: "09:15", status: "present", method: "face" },
+  { id: "2", studentId: "2301640130143", studentName: "Virat Trivedi", date: "2025-11-09", time: "09:18", status: "present", method: "face" },
+  { id: "3", studentId: "2301640130145", studentName: "Vishesh Singh", date: "2025-11-09", time: "09:22", status: "present", method: "face" },
+  { id: "4", studentId: "2301640130085", studentName: "Parth Mishra", date: "2025-11-08", time: "09:10", status: "present", method: "face" },
+  { id: "5", studentId: "2301640130099", studentName: "Ram Ji", date: "2025-11-08", time: "09:25", status: "present", method: "face" },
 ];
 
 // API Base URL - Update this to your FastAPI backend URL
