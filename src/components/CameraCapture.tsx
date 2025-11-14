@@ -5,6 +5,7 @@ import { Card } from "@/components/ui/card";
 import { Camera, X, RotateCcw, CheckCircle } from "lucide-react";
 import { api } from "@/services/api";
 import { useToast } from "@/hooks/use-toast";
+import { FaceDetector, FilesetResolver } from "@mediapipe/tasks-vision";
 
 interface CameraCaptureProps {
   onAttendanceMarked?: () => void;
@@ -19,16 +20,46 @@ export function CameraCapture({ onAttendanceMarked }: CameraCaptureProps) {
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [rollNumber, setRollNumber] = useState("");
   const [studentName, setStudentName] = useState("");
+  const [faceDetected, setFaceDetected] = useState(false);
+  const [faceStableCount, setFaceStableCount] = useState(0);
+  const [showInputs, setShowInputs] = useState(true);
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const overlayCanvasRef = useRef<HTMLCanvasElement>(null);
+  const faceDetectorRef = useRef<FaceDetector | null>(null);
+  const detectionLoopRef = useRef<number | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
+    initializeFaceDetector();
     return () => {
       stopCamera();
+      if (detectionLoopRef.current) {
+        cancelAnimationFrame(detectionLoopRef.current);
+      }
     };
   }, []);
+
+  const initializeFaceDetector = async () => {
+    try {
+      const vision = await FilesetResolver.forVisionTasks(
+        "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm"
+      );
+      const detector = await FaceDetector.createFromOptions(vision, {
+        baseOptions: {
+          modelAssetPath: "https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.tflite",
+          delegate: "GPU"
+        },
+        runningMode: "VIDEO",
+        minDetectionConfidence: 0.5
+      });
+      faceDetectorRef.current = detector;
+      console.log("Face detector initialized");
+    } catch (error) {
+      console.error("Failed to initialize face detector:", error);
+    }
+  };
 
   // Reliably bind stream to video element when camera opens
   useEffect(() => {
@@ -44,6 +75,10 @@ export function CameraCapture({ onAttendanceMarked }: CameraCaptureProps) {
           const track = stream.getVideoTracks()[0];
           if (track) {
             console.log('Track settings:', track.getSettings());
+          }
+          // Start face detection loop
+          if (faceDetectorRef.current) {
+            detectFaces();
           }
         })
         .catch(err => console.error('Video play failed:', err));
@@ -131,7 +166,85 @@ export function CameraCapture({ onAttendanceMarked }: CameraCaptureProps) {
     if (videoRef.current) {
       videoRef.current.srcObject = null;
     }
+    if (detectionLoopRef.current) {
+      cancelAnimationFrame(detectionLoopRef.current);
+      detectionLoopRef.current = null;
+    }
     setIsCameraOpen(false);
+    setFaceDetected(false);
+    setFaceStableCount(0);
+  };
+
+  const detectFaces = async () => {
+    const video = videoRef.current;
+    const overlayCanvas = overlayCanvasRef.current;
+    
+    if (!video || !overlayCanvas || !faceDetectorRef.current || !isCameraOpen) {
+      return;
+    }
+
+    if (video.readyState === video.HAVE_ENOUGH_DATA) {
+      const ctx = overlayCanvas.getContext('2d');
+      if (!ctx) return;
+
+      // Match overlay canvas to video dimensions
+      overlayCanvas.width = video.videoWidth;
+      overlayCanvas.height = video.videoHeight;
+      
+      // Clear previous drawings
+      ctx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+
+      try {
+        const detections = faceDetectorRef.current.detectForVideo(video, performance.now());
+        
+        if (detections.detections && detections.detections.length > 0) {
+          setFaceDetected(true);
+          setFaceStableCount(prev => prev + 1);
+
+          // Draw bounding boxes and indicators
+          detections.detections.forEach((detection) => {
+            const box = detection.boundingBox;
+            if (box) {
+              // Draw bounding box
+              ctx.strokeStyle = '#10b981';
+              ctx.lineWidth = 3;
+              ctx.strokeRect(box.originX, box.originY, box.width, box.height);
+              
+              // Draw corner indicators
+              const cornerSize = 20;
+              ctx.fillStyle = '#10b981';
+              // Top-left
+              ctx.fillRect(box.originX, box.originY, cornerSize, 3);
+              ctx.fillRect(box.originX, box.originY, 3, cornerSize);
+              // Top-right
+              ctx.fillRect(box.originX + box.width - cornerSize, box.originY, cornerSize, 3);
+              ctx.fillRect(box.originX + box.width - 3, box.originY, 3, cornerSize);
+              // Bottom-left
+              ctx.fillRect(box.originX, box.originY + box.height - 3, cornerSize, 3);
+              ctx.fillRect(box.originX, box.originY + box.height - cornerSize, 3, cornerSize);
+              // Bottom-right
+              ctx.fillRect(box.originX + box.width - cornerSize, box.originY + box.height - 3, cornerSize, 3);
+              ctx.fillRect(box.originX + box.width - 3, box.originY + box.height - cornerSize, 3, cornerSize);
+            }
+          });
+
+          // Auto-capture after face is stable for ~1.5 seconds (45 frames at 30fps)
+          if (faceStableCount >= 45 && !capturedImage) {
+            capturePhoto();
+          }
+        } else {
+          setFaceDetected(false);
+          setFaceStableCount(0);
+        }
+      } catch (error) {
+        console.error("Face detection error:", error);
+      }
+    }
+
+    // Continue detection loop
+    if (isCameraOpen) {
+      detectionLoopRef.current = requestAnimationFrame(detectFaces);
+    }
   };
 
   const capturePhoto = () => {
@@ -162,6 +275,20 @@ export function CameraCapture({ onAttendanceMarked }: CameraCaptureProps) {
   const retakePhoto = () => {
     setCapturedImage(null);
     setSuccess(false);
+    setFaceStableCount(0);
+    startCamera();
+  };
+
+  const handleStartCamera = () => {
+    if (!rollNumber.trim() || !studentName.trim()) {
+      toast({
+        title: "Missing Information",
+        description: "Please enter both roll number and name first.",
+        variant: "destructive",
+      });
+      return;
+    }
+    setShowInputs(false);
     startCamera();
   };
 
@@ -232,16 +359,31 @@ export function CameraCapture({ onAttendanceMarked }: CameraCaptureProps) {
               >
                 <div className="relative w-full max-w-md mx-auto aspect-square rounded-2xl overflow-hidden border-4 border-primary/20 bg-black">
                   {isCameraOpen && (
-                    <video
-                      ref={videoRef}
-                      autoPlay
-                      playsInline
-                      muted
-                      onLoadedMetadata={() => {
-                        console.log('Video metadata loaded');
-                      }}
-                      className="absolute inset-0 w-full h-full object-cover transform-gpu scale-x-[-1]"
-                    />
+                    <>
+                      <video
+                        ref={videoRef}
+                        autoPlay
+                        playsInline
+                        muted
+                        onLoadedMetadata={() => {
+                          console.log('Video metadata loaded');
+                        }}
+                        className="absolute inset-0 w-full h-full object-cover transform-gpu scale-x-[-1]"
+                      />
+                      <canvas
+                        ref={overlayCanvasRef}
+                        className="absolute inset-0 w-full h-full transform-gpu scale-x-[-1] pointer-events-none"
+                      />
+                      {faceDetected && (
+                        <motion.div
+                          initial={{ opacity: 0, y: 20 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-green-500/90 text-white px-4 py-2 rounded-full text-sm font-medium"
+                        >
+                          Face Detected - Hold Still
+                        </motion.div>
+                      )}
+                    </>
                   )}
                   {capturedImage && (
                     <img
@@ -257,11 +399,14 @@ export function CameraCapture({ onAttendanceMarked }: CameraCaptureProps) {
                     <>
                       <Button
                         variant="outline"
-                        onClick={stopCamera}
+                        onClick={() => {
+                          stopCamera();
+                          setShowInputs(true);
+                        }}
                         className="gap-2"
                       >
                         <X className="w-4 h-4" />
-                        Close
+                        Cancel
                       </Button>
                       <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
                         <Button
@@ -269,7 +414,7 @@ export function CameraCapture({ onAttendanceMarked }: CameraCaptureProps) {
                           className="gradient-primary gap-2"
                         >
                           <Camera className="w-4 h-4" />
-                          Capture Photo
+                          Capture Now
                         </Button>
                       </motion.div>
                     </>
@@ -314,24 +459,32 @@ export function CameraCapture({ onAttendanceMarked }: CameraCaptureProps) {
                 </div>
 
                 {isCameraOpen && (
-                  <p className="text-xs text-muted-foreground">
-                    Position your face in the frame and capture
-                  </p>
+                  <div className="text-center space-y-2">
+                    <p className="text-sm font-medium text-foreground">
+                      {rollNumber} - {studentName}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {faceDetected 
+                        ? "Hold still... Auto-capturing in " + Math.max(0, Math.ceil((45 - faceStableCount) / 30)) + "s"
+                        : "Position your face in the frame"
+                      }
+                    </p>
+                  </div>
                 )}
               </motion.div>
-            ) : (
-              /* Initial State */
+            ) : showInputs ? (
+              /* Initial State - Input Form */
               <>
                 <motion.div
                   whileHover={{ scale: 1.05 }}
                   className="w-32 h-32 mx-auto mb-6 rounded-full gradient-primary flex items-center justify-center"
                 >
-                  <CheckCircle className="w-16 h-16 text-white" />
+                  <Camera className="w-16 h-16 text-white" />
                 </motion.div>
 
                 <h3 className="text-xl font-bold mb-4">Mark Your Attendance</h3>
                 <p className="text-muted-foreground mb-6">
-                  Enter your roll number and name to mark attendance
+                  Enter your details and we'll detect your face automatically
                 </p>
 
                 <div className="space-y-4 max-w-md mx-auto">
@@ -370,30 +523,17 @@ export function CameraCapture({ onAttendanceMarked }: CameraCaptureProps) {
                   >
                     <Button
                       size="lg"
-                      onClick={handleMarkAttendance}
-                      disabled={loading || !rollNumber.trim() || !studentName.trim()}
+                      onClick={handleStartCamera}
+                      disabled={!rollNumber.trim() || !studentName.trim()}
                       className="w-full gradient-primary gap-2"
                     >
-                      {loading ? (
-                        <>
-                          <motion.div
-                            animate={{ rotate: 360 }}
-                            transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                            className="w-4 h-4 border-2 border-white border-t-transparent rounded-full"
-                          />
-                          Marking Attendance...
-                        </>
-                      ) : (
-                        <>
-                          <CheckCircle className="w-4 h-4" />
-                          Mark Attendance
-                        </>
-                      )}
+                      <Camera className="w-4 h-4" />
+                      Start Face Detection
                     </Button>
                   </motion.div>
                 </div>
               </>
-            )}
+            ) : null}
           </>
         )}
 
