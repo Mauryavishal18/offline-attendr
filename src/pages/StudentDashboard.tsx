@@ -6,15 +6,15 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { CameraCapture } from "@/components/CameraCapture";
 import { AttendanceChart } from "@/components/AttendanceChart";
 import { api } from "@/services/api";
-import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function StudentDashboard() {
   const [stats, setStats] = useState({ present: 0, absent: 0, total: 0 });
   const [loading, setLoading] = useState(true);
-  const navigate = useNavigate();
+  const { logout, user } = useAuth();
 
   useEffect(() => {
     loadStats();
@@ -23,8 +23,9 @@ export default function StudentDashboard() {
   const loadStats = async () => {
     setLoading(true);
     try {
-      // Mock student ID - replace with actual logged-in student ID
-      const data = await api.getStudentStats("STU001");
+      // Use actual logged-in student's roll number
+      const studentRoll = user?.studentRoll || "STU001";
+      const data = await api.getStudentStats(studentRoll);
       setStats(data);
     } finally {
       setLoading(false);
@@ -32,7 +33,7 @@ export default function StudentDashboard() {
   };
 
   const handleLogout = () => {
-    navigate("/");
+    logout();
   };
 
   const percentage = stats.total > 0 ? Math.round((stats.present / stats.total) * 100) : 0;

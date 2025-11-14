@@ -1,41 +1,41 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
-import { GraduationCap, User } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
+import { GraduationCap } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function Login() {
-  const [role, setRole] = useState<"teacher" | "student">("teacher");
-  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const { login, isAuthenticated, user } = useAuth();
   const navigate = useNavigate();
-  const { toast } = useToast();
 
-  const handleLogin = (e: React.FormEvent) => {
+  // Redirect if already authenticated
+  useEffect(() => {
+    if (isAuthenticated && user) {
+      navigate(user.role === "teacher" ? "/teacher" : "/student");
+    }
+  }, [isAuthenticated, user, navigate]);
+
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Mock authentication
-    if (username && password) {
-      toast({
-        title: "Login Successful",
-        description: `Welcome, ${username}!`,
-      });
-      
-      if (role === "teacher") {
-        navigate("/teacher");
-      } else {
-        navigate("/student");
-      }
-    } else {
-      toast({
-        title: "Login Failed",
-        description: "Please enter username and password",
-        variant: "destructive",
-      });
+    if (!email || !password) {
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await login(email, password);
+    } catch (error) {
+      // Error handling is done in AuthContext
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -61,37 +61,16 @@ export default function Login() {
             <p className="text-muted-foreground">Sign in to continue</p>
           </motion.div>
 
-          {/* Role Selection */}
-          <div className="flex gap-4 mb-6">
-            <Button
-              type="button"
-              variant={role === "teacher" ? "default" : "outline"}
-              className="flex-1"
-              onClick={() => setRole("teacher")}
-            >
-              <GraduationCap className="w-4 h-4 mr-2" />
-              Teacher
-            </Button>
-            <Button
-              type="button"
-              variant={role === "student" ? "default" : "outline"}
-              className="flex-1"
-              onClick={() => setRole("student")}
-            >
-              <User className="w-4 h-4 mr-2" />
-              Student
-            </Button>
-          </div>
-
           <form onSubmit={handleLogin} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="username">Username</Label>
+              <Label htmlFor="email">Email</Label>
               <Input
-                id="username"
-                type="text"
-                placeholder="Enter your username"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
+                id="email"
+                type="email"
+                placeholder="your@email.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
                 className="bg-background/50"
               />
             </div>
@@ -104,6 +83,7 @@ export default function Login() {
                 placeholder="Enter your password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                required
                 className="bg-background/50"
               />
             </div>
@@ -112,15 +92,21 @@ export default function Login() {
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
             >
-              <Button type="submit" className="w-full gradient-primary">
-                Sign In
+              <Button 
+                type="submit" 
+                className="w-full gradient-primary"
+                disabled={loading}
+              >
+                {loading ? "Signing In..." : "Sign In"}
               </Button>
             </motion.div>
           </form>
 
-          <p className="text-center text-sm text-muted-foreground mt-6">
-            Demo: Use any username/password to login
-          </p>
+          <div className="text-center text-sm text-muted-foreground mt-6 space-y-1">
+            <p className="font-medium">Test Accounts:</p>
+            <p>Teacher: teacher@example.com / password123</p>
+            <p>Student: vishal@gmail.com / 123456</p>
+          </div>
         </Card>
       </motion.div>
     </div>

@@ -6,14 +6,14 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { StatCard } from "@/components/StatCard";
 import { AttendanceTable } from "@/components/AttendanceTable";
 import { api, AttendanceRecord } from "@/services/api";
-import { useNavigate } from "react-router-dom";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function TeacherDashboard() {
   const [records, setRecords] = useState<AttendanceRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const navigate = useNavigate();
+  const { logout, user } = useAuth();
 
   useEffect(() => {
     loadData();
@@ -36,7 +36,7 @@ export default function TeacherDashboard() {
   const absentToday = 5 - presentToday; // Mock total students
 
   const handleLogout = () => {
-    navigate("/");
+    logout();
   };
 
   return (

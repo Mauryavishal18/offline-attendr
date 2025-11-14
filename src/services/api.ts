@@ -1,5 +1,4 @@
 // API Service - Connect to your Python FastAPI backend here
-// Currently using mock data for frontend development
 
 export interface Student {
   id: string;
@@ -7,6 +6,7 @@ export interface Student {
   studentId: string;
   photo?: string;
   email: string;
+  studentRoll?: string;
 }
 
 export interface AttendanceRecord {
@@ -39,8 +39,34 @@ const mockAttendance: AttendanceRecord[] = [
 // API Base URL - FastAPI backend
 const API_BASE_URL = "http://127.0.0.1:8000";
 
-// Mock API calls - Replace with actual fetch calls to your backend
+// Token management utilities
+export const getAuthToken = () => localStorage.getItem("auth_token");
+export const setAuthToken = (token: string) => localStorage.setItem("auth_token", token);
+export const removeAuthToken = () => localStorage.removeItem("auth_token");
+export const getAuthUser = () => {
+  const user = localStorage.getItem("auth_user");
+  return user ? JSON.parse(user) : null;
+};
+export const setAuthUser = (user: any) => localStorage.setItem("auth_user", JSON.stringify(user));
+export const removeAuthUser = () => localStorage.removeItem("auth_user");
+
 export const api = {
+  // Login endpoint
+  async login(email: string, password: string): Promise<{ token: string; user: any }> {
+    const response = await fetch(`${API_BASE_URL}/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password })
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Login failed');
+    }
+    
+    return await response.json();
+  },
+
   // Register a new student
   async registerStudent(data: Omit<Student, "id"> & { password: string; studentRoll: string }): Promise<{ token: string; user: Student }> {
     const response = await fetch(`${API_BASE_URL}/auth/register`, {
@@ -106,61 +132,63 @@ export const api = {
   },
 
   // Get all attendance records
-  async getAttendanceRecords(fromDate?: string, toDate?: string, roll?: string): Promise<AttendanceRecord[]> {
+  async getAttendanceRecords(startDate?: string, endDate?: string, roll?: string): Promise<AttendanceRecord[]> {
     const params = new URLSearchParams();
-    if (fromDate) params.append('from_date', fromDate);
-    if (toDate) params.append('to_date', toDate);
+    if (startDate) params.append('from', startDate);
+    if (endDate) params.append('to', endDate);
     if (roll) params.append('roll', roll);
     
-    const url = `${API_BASE_URL}/attendance${params.toString() ? '?' + params.toString() : ''}`;
-    const response = await fetch(url);
+    const response = await fetch(`${API_BASE_URL}/attendance?${params.toString()}`);
     
     if (!response.ok) {
-      throw new Error('Failed to fetch attendance records');
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to fetch attendance records');
     }
     
     const data = await response.json();
     
     return data.map((record: any) => ({
-      id: record.id,
+      id: record._id || record.id,
       studentId: record.roll,
       studentName: record.name,
       date: new Date(record.timestamp).toISOString().split('T')[0],
       time: new Date(record.timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
-      status: record.status.toLowerCase(),
-      method: "manual"
+      status: record.status?.toLowerCase() || "present",
+      method: "face"
     }));
   },
 
-  // Get student attendance stats
-  async getStudentStats(studentRoll: string): Promise<{ present: number; absent: number; total: number }> {
-    const allRecords = await this.getAttendanceRecords(undefined, undefined, studentRoll);
-    const present = allRecords.filter(r => r.status === "present").length;
+  // Get student statistics
+  async getStudentStats(studentId: string): Promise<{ present: number; absent: number; total: number }> {
+    const params = new URLSearchParams({ roll: studentId });
+    const response = await fetch(`${API_BASE_URL}/attendance?${params.toString()}`);
     
-    // For absent days, calculate days since start of month minus present days
-    const now = new Date();
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-    const daysSinceStart = Math.floor((now.getTime() - startOfMonth.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-    const absent = Math.max(0, daysSinceStart - present);
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to fetch student stats');
+    }
+    
+    const data = await response.json();
+    const present = data.length;
     
     return {
       present,
-      absent,
-      total: present + absent
+      absent: 0,
+      total: present
     };
   },
 
-  // Get all students
+  // Get list of all students
   async getStudents(): Promise<Student[]> {
     const response = await fetch(`${API_BASE_URL}/students`);
     
     if (!response.ok) {
-      throw new Error('Failed to fetch students');
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to fetch students');
     }
     
-    const data = await response.json();
-    
-    return data.map((student: any) => ({
+    const students = await response.json();
+    return students.map((student: any) => ({
       id: student.id,
       name: student.name,
       studentId: student.roll,
@@ -168,20 +196,4 @@ export const api = {
       photo: student.avatarPath
     }));
   },
-
-  // Login user
-  async login(email: string, password: string): Promise<{ token: string; user: any }> {
-    const response = await fetch(`${API_BASE_URL}/auth/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password })
-    });
-    
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.detail || 'Login failed');
-    }
-    
-    return response.json();
-  }
 };
