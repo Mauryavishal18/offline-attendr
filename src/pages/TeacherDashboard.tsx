@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { Users, UserCheck, UserX, LogOut, Menu } from "lucide-react";
+import { Users, UserCheck, UserX, LogOut, Menu, FileText } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { StatCard } from "@/components/StatCard";
@@ -14,6 +15,7 @@ export default function TeacherDashboard() {
   const [loading, setLoading] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const { logout, user } = useAuth();
+  const navigate = useNavigate();
 
   useEffect(() => {
     loadData();
@@ -87,8 +89,12 @@ export default function TeacherDashboard() {
               <UserCheck className="w-4 h-4 mr-2" />
               Students
             </Button>
-            <Button variant="ghost" className="w-full justify-start">
-              <UserX className="w-4 h-4 mr-2" />
+            <Button 
+              variant="ghost" 
+              className="w-full justify-start"
+              onClick={() => navigate("/reports")}
+            >
+              <FileText className="w-4 h-4 mr-2" />
               Reports
             </Button>
           </nav>
