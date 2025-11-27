@@ -9,6 +9,7 @@ import { ProtectedRoute } from "@/components/ProtectedRoute";
 import Login from "./pages/Login";
 import TeacherDashboard from "./pages/TeacherDashboard";
 import StudentDashboard from "./pages/StudentDashboard";
+import StudentProfile from "./pages/StudentProfile";
 import Reports from "./pages/Reports";
 import NotFound from "./pages/NotFound";
 
@@ -46,6 +47,14 @@ const App = () => (
                 element={
                   <ProtectedRoute requiredRole="student">
                     <StudentDashboard />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/student/profile" 
+                element={
+                  <ProtectedRoute requiredRole="student">
+                    <StudentProfile />
                   </ProtectedRoute>
                 } 
               />
