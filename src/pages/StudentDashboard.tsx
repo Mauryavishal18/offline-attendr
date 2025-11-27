@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { LogOut, Calendar, TrendingUp } from "lucide-react";
+import { LogOut, Calendar, TrendingUp, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { CameraCapture } from "@/components/CameraCapture";
@@ -15,6 +16,7 @@ export default function StudentDashboard() {
   const [stats, setStats] = useState({ present: 0, absent: 0, total: 0 });
   const [loading, setLoading] = useState(true);
   const { logout, user } = useAuth();
+  const navigate = useNavigate();
 
   useEffect(() => {
     loadStats();
@@ -50,6 +52,9 @@ export default function StudentDashboard() {
           <h1 className="text-xl font-bold">Student Dashboard</h1>
           <div className="flex items-center gap-2">
             <ThemeToggle />
+            <Button variant="ghost" size="icon" onClick={() => navigate("/student/profile")}>
+              <User className="w-5 h-5" />
+            </Button>
             <Button variant="ghost" size="icon" onClick={handleLogout}>
               <LogOut className="w-5 h-5" />
             </Button>
