@@ -85,7 +85,11 @@ export default function TeacherDashboard() {
               <Users className="w-4 h-4 mr-2" />
               Dashboard
             </Button>
-            <Button variant="ghost" className="w-full justify-start">
+            <Button 
+              variant="ghost" 
+              className="w-full justify-start"
+              onClick={() => navigate("/students")}
+            >
               <UserCheck className="w-4 h-4 mr-2" />
               Students
             </Button>
