@@ -196,4 +196,78 @@ export const api = {
       photo: student.avatarPath
     }));
   },
+
+  // Create a new student
+  async createStudent(data: { name: string; email: string; studentRoll: string; password: string }): Promise<Student> {
+    const response = await fetch(`${API_BASE_URL}/auth/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: data.name,
+        email: data.email,
+        password: data.password,
+        role: 'student',
+        studentRoll: data.studentRoll
+      })
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to create student');
+    }
+    
+    const result = await response.json();
+    return {
+      id: result.user.id,
+      name: result.user.name,
+      studentId: result.user.studentRoll,
+      email: result.user.email,
+      photo: result.user.avatarPath
+    };
+  },
+
+  // Update an existing student
+  async updateStudent(id: string, data: { name: string; email: string; studentRoll: string }): Promise<Student> {
+    const response = await fetch(`${API_BASE_URL}/students/${id}`, {
+      method: 'PUT',
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${getAuthToken()}`
+      },
+      body: JSON.stringify({
+        name: data.name,
+        email: data.email,
+        roll: data.studentRoll
+      })
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to update student');
+    }
+    
+    const result = await response.json();
+    return {
+      id: result.id,
+      name: result.name,
+      studentId: result.roll,
+      email: result.email,
+      photo: result.avatarPath
+    };
+  },
+
+  // Delete a student
+  async deleteStudent(id: string): Promise<void> {
+    const response = await fetch(`${API_BASE_URL}/students/${id}`, {
+      method: 'DELETE',
+      headers: { 
+        'Authorization': `Bearer ${getAuthToken()}`
+      }
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to delete student');
+    }
+  },
 };

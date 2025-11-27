@@ -10,6 +10,7 @@ import Login from "./pages/Login";
 import TeacherDashboard from "./pages/TeacherDashboard";
 import StudentDashboard from "./pages/StudentDashboard";
 import StudentProfile from "./pages/StudentProfile";
+import StudentManagement from "./pages/StudentManagement";
 import Reports from "./pages/Reports";
 import NotFound from "./pages/NotFound";
 
@@ -39,6 +40,14 @@ const App = () => (
                 element={
                   <ProtectedRoute requiredRole="teacher">
                     <Reports />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/students" 
+                element={
+                  <ProtectedRoute requiredRole="teacher">
+                    <StudentManagement />
                   </ProtectedRoute>
                 } 
               />
